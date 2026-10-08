@@ -58,10 +58,16 @@ public class FlutterWebViewController: NSView, Disposable {
         webView!.findInteractionController = findInteractionController
         findInteractionController.prepare()
         
-        webView!.autoresizingMask = [.width, .height]
-        self.autoresizesSubviews = true
+        // The web view's frame is pinned to `bounds` in `setFrameSize` and
+        // `layout` instead of autoresizing. Autoresizing applies only the size
+        // delta, so the rounding of every resize Flutter drives accumulates and
+        // the web view drifts from its host: the page grows or shrinks on its
+        // own and WebKit's mouse-move coordinates go stale.
+        webView!.autoresizingMask = []
+        self.autoresizesSubviews = false
         self.autoresizingMask = [.width, .height]
         self.addSubview(webView!)
+        pinWebViewFrame()
 
         webView!.settings = settings
         webView!.prepare()
@@ -70,6 +76,26 @@ public class FlutterWebViewController: NSView, Disposable {
     
     required init?(coder nsCoder: NSCoder) {
         super.init(coder: nsCoder)
+    }
+
+    public override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        pinWebViewFrame()
+    }
+
+    public override func layout() {
+        super.layout()
+        pinWebViewFrame()
+    }
+
+    /// Sizes the web view to exactly fill this view. A web view that moved
+    /// elsewhere (WKWebView fullscreen reparents it) is not a subview and is
+    /// left alone.
+    private func pinWebViewFrame() {
+        guard let webView = webView(), webView.frame != bounds else {
+            return
+        }
+        webView.frame = bounds
     }
     
     public func webView() -> InAppWebView? {
